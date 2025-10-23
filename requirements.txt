@@ -1,3 +1,4 @@
+# Minimal production dependencies for the Django backend
 # Keep this list lean so Render (and local dev) install quickly.
 
 Django>=5.2.7
