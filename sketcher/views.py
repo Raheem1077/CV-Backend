@@ -72,3 +72,56 @@ def list_images(request):
 		'uploads': _gather(uploads_dir),
 		'sketches': _gather(sketches_dir),
 	})
+
+
+def get_image(request, image_id):
+	"""Fetch a specific image by filename (image_id) and return its details with sketch if available."""
+	if request.method != 'GET':
+		return JsonResponse({'error': 'GET required'}, status=405)
+
+	media_root = Path(settings.MEDIA_ROOT)
+	uploads_dir = media_root / 'uploads'
+	sketches_dir = media_root / 'sketches'
+	allowed_exts = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
+
+	# Find the original image
+	original_file = None
+	if uploads_dir.exists():
+		for file_path in uploads_dir.iterdir():
+			if file_path.is_file() and file_path.name == image_id and file_path.suffix.lower() in allowed_exts:
+				original_file = file_path
+				break
+
+	if not original_file:
+		return JsonResponse({'error': 'Image not found'}, status=404)
+
+	# Build original URL
+	original_rel = original_file.relative_to(media_root).as_posix()
+	original_url = request.build_absolute_uri(settings.MEDIA_URL + original_rel)
+
+	# Try to find matching sketch
+	sketch_file = None
+	sketch_url = None
+	stem = original_file.stem
+	suffix = original_file.suffix
+	sketch_name = f'{stem}_sketch{suffix}'
+
+	if sketches_dir.exists():
+		sketch_path = sketches_dir / sketch_name
+		if sketch_path.exists() and sketch_path.is_file():
+			sketch_file = sketch_path
+			sketch_rel = sketch_file.relative_to(media_root).as_posix()
+			sketch_url = request.build_absolute_uri(settings.MEDIA_URL + sketch_rel)
+
+	response = {
+		'filename': original_file.name,
+		'original_url': original_url,
+		'created_at': original_file.stat().st_mtime,
+	}
+
+	if sketch_url:
+		response['sketch_url'] = sketch_url
+	else:
+		response['sketch_url'] = None
+
+	return JsonResponse(response)
