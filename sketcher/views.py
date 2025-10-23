@@ -1,8 +1,10 @@
-from django.http import HttpResponse, JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+import os
+from pathlib import Path
+
 from django.conf import settings
 from django.core.files.storage import default_storage
-import os
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 
 from .utils import convert_to_sketch
 
@@ -42,3 +44,31 @@ def sketch_image(request):
 	sketch_url = request.build_absolute_uri(settings.MEDIA_URL + rel_path)
 
 	return JsonResponse({'sketch_url': sketch_url})
+
+
+def list_images(request):
+	"""Return JSON lists of available uploaded and sketched images."""
+	if request.method != 'GET':
+		return JsonResponse({'error': 'GET required'}, status=405)
+
+	media_root = Path(settings.MEDIA_ROOT)
+	uploads_dir = media_root / 'uploads'
+	sketches_dir = media_root / 'sketches'
+	allowed_exts = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
+
+	def _gather(directory: Path):
+		files = []
+		if directory.exists():
+			for file_path in sorted(directory.iterdir(), reverse=True):
+				if file_path.is_file() and file_path.suffix.lower() in allowed_exts:
+					rel = file_path.relative_to(media_root).as_posix()
+					files.append({
+						'filename': file_path.name,
+						'url': request.build_absolute_uri(settings.MEDIA_URL + rel),
+					})
+		return files
+
+	return JsonResponse({
+		'uploads': _gather(uploads_dir),
+		'sketches': _gather(sketches_dir),
+	})
